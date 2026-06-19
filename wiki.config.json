@@ -1,0 +1,8 @@
+{
+  "purpose": null,
+  "taxonomy": ["sources", "entities", "concepts"],
+  "sources": [],
+  "remote": null,
+  "cron": null,
+  "schedule_id": null
+}

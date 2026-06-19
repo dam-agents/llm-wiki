@@ -1,0 +1,28 @@
+# This repository (llm-wiki) is checked out at the agent's working directory
+# (/home/agent/work). Runtime state also lives here: source clones (sources/),
+# the inner wiki content repo (wiki/, its own .git + remote), and harness junk.
+# To make `git add -A` safe and never capture any of that, ignore EVERYTHING by
+# default, then re-include only the definition + instance files this repo tracks.
+#
+# NOTE: this repo still TRACKS the wiki/ seed (index.md, log.md, pages/.gitkeep)
+# so a fresh checkout materialises a usable wiki scaffold. .gitignore does not
+# untrack files already in the index, so those seeds stay versioned here even
+# though `wiki/` is not re-included below; the `/*` rule only hides *untracked*
+# paths under wiki/ (new pages, the inner wiki/.git). On the agent volume,
+# installation additionally runs `git update-index --skip-worktree` on the seed
+# and instance files so their runtime changes never enter a definition commit.
+
+/*
+
+!/.gitignore
+!/README.md
+!/INSTALLATION.md
+!/CLAUDE.md
+!/THIS-WIKI.md
+!/wiki.config.json
+!/skills/
+!/scripts/
+
+# Never track these even if a future allowlist entry would pull them in.
+.DS_Store
+node_modules/

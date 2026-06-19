@@ -8,9 +8,8 @@ maintenance that runs when nobody is asking.
 
 This repo is the agent's **definition**. There is no custom image: the agent runs
 on the generic `claude-code` template and installs itself from this repo at
-runtime (see **Setup**), the same way [`code-guardian`](https://github.com/dam-agents/code-guardian)
-does. Edit the files here and the running agent picks them up on its next
-definition pull.
+runtime (see **Setup**). Edit the files here and the running agent picks them up on
+its next definition pull.
 
 ## The three layers
 
@@ -59,9 +58,8 @@ The agent reads the runbook, installs itself, then offers to onboard. Answer its
 interview and it points itself at the repos you want documented, schedules its own
 maintenance, and runs the first ingest. From then on it runs autonomously.
 
-Unlike `code-guardian`, llm-wiki needs **no environment variables**: the sources
-and the wiki remote come from the onboarding interview, not from config injected
-at create time.
+llm-wiki needs **no environment variables**: the sources and the wiki remote come
+from the onboarding interview, not from config injected at create time.
 
 ## How the agent runs after onboarding
 

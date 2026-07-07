@@ -1,15 +1,10 @@
-# llm-wiki
+# LLM Wiki Agent
 
-A Claude Code agent that maintains an **AI-curated, interlinked markdown wiki**
-about one or more GitHub repositories. It implements the LLM-Wiki
-pattern: distil source repos into durable, cited markdown that is precomputed and
-kept current, rather than chunk-retrieved per query (RAG). The value is the
-maintenance that runs when nobody is asking.
+A Claude Code agent that builds and maintains AI-curated knowledge wikis for GitHub repositories.
 
-This repo is the agent's **definition**. There is no custom image: the agent runs
-on the generic `claude-code` template and installs itself from this repo at
-runtime (see **Setup**). Edit the files here and the running agent picks them up on
-its next definition pull.
+It implements [Karpathy's LLM Wiki pattern](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f): the agent reads a source repository, distills its architecture, patterns, and design decisions into durable markdown, and continuously updates the wiki as the codebase evolves. The wiki is precomputed and maintained over time rather than generated on demand.
+
+This repository contains the agent definition, skills, and workflows used to create, update, and maintain these wikis.
 
 ## The three layers
 

@@ -2,80 +2,48 @@
 
 A Claude Code agent that builds and maintains AI-curated knowledge wikis for GitHub repositories.
 
-It implements [Karpathy's LLM Wiki pattern](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f): the agent reads a source repository, distills its architecture, patterns, and design decisions into durable markdown, and continuously updates the wiki as the codebase evolves. The wiki is precomputed and maintained over time rather than generated on demand.
+It implements [Karpathy's LLM Wiki pattern](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f): the agent reads a source repo, distills its architecture and design decisions into durable, cited markdown, and keeps it current as the code evolves. The wiki is precomputed and maintained over time — not generated per query (unlike RAG). This repo is the agent's definition; the wiki it produces lives in a separate content repo.
 
-This repository contains the agent definition, skills, and workflows used to create, update, and maintain these wikis.
+## How it works
 
-## The three layers
+The agent runs headless and organizes everything into three layers:
 
-1. **Sources** — the GitHub repos being documented. Shallow-cloned into a
-   gitignored `sources/`, read-only.
-2. **Wiki** — the maintained markdown under `wiki/`: `wiki/pages/`,
-   `wiki/index.md`, `wiki/log.md`. This is the product. `wiki/` is its own git
-   repo and the only thing pushed to the wiki remote, so the remote stays a pure
-   content database that outlives the pod.
-3. **Schema & tooling** — `CLAUDE.md` (the operating manual), the `skills/`, the
-   `scripts/`, and the per-instance files `wiki.config.json` + `THIS-WIKI.md`.
-   Agent-owned: they live on the pod's PVC beside `wiki/`, never inside it.
+- **Sources** — the GitHub repos being documented. Shallow-cloned into a gitignored `sources/`, read-only.
+- **Wiki** — the product: `wiki/pages/`, `wiki/index.md`, `wiki/log.md`. `wiki/` is its own git repo, and the only thing pushed to the wiki remote, so the content outlives the pod.
+- **Schema & tooling** — this repo: `CLAUDE.md` (the operating manual), `skills/`, `scripts/`, and the per-instance `wiki.config.json` + `THIS-WIKI.md`. Agent-owned — they sit on the pod's PVC beside `wiki/`, never inside it, so only content is ever pushed.
 
-## Two phases: installation, then onboarding
+Four skills drive it, each logged in `wiki/log.md`:
 
-The agent reaches steady state in two distinct phases, both run by the agent
-itself, off a single first message from the operator:
+- **onboard** — interactive, once: interview for purpose, sources, taxonomy, and cadence; schedule maintenance; run the first ingest.
+- **ingest** — delta-ingest new commits, then commit and push silently (scheduled).
+- **lint** — refresh stale pages, resolve contradictions, fix orphans and broken links (scheduled, after ingest).
+- **query** — answer a question from the wiki with citations (on request, via Slack / Web UI).
 
-1. **Installation** ([`INSTALLATION.md`](INSTALLATION.md)) — machine setup. Makes
-   `/home/agent/work` this repo, surfaces the skills, protects the instance files,
-   writes a sentinel. One-shot and idempotent. Does **not** interview, schedule,
-   or ingest.
-2. **Onboarding** (the `onboard` skill) — the human interview. Asks for the wiki's
-   purpose, source repos, taxonomy, cadence, and the git remote to push the wiki
-   to; verifies the remote; writes `wiki.config.json` and `THIS-WIKI.md`; schedules
-   recurring maintenance; runs the first ingest.
+Every page pins its provenance (`source`, `commit`, `files`) in frontmatter, and every claim is cited inline as `path:line @sha`.
 
-Installation ends by offering onboarding, so the operator only ever sends one
-message.
+Maintenance is scheduled through the `platform-outbound` MCP `create_schedule` tool — the only valid scheduler inside a Platform pod. Only `wiki/` survives pod deletion, via its remote; a fresh agent re-clones it and rebuilds `wiki.config.json` from each page's provenance.
 
 ## Setup
 
-Bringing up a new llm-wiki agent takes three steps:
+Bringing up a new agent takes one message. On the platform:
 
-1. **Create the agent** on the platform from the generic `claude-code` template,
-   with a **GitHub** connection granted (used by `gh` to clone this repo, the
-   source repos, and to push the wiki). Grant **Slack** too if you want query
-   delivery to a channel.
-2. **Grab the link to [`INSTALLATION.md`](INSTALLATION.md)** — it is:
-   `https://github.com/dam-agents/llm-wiki/blob/main/INSTALLATION.md`
-3. **Tell the agent**, in its first message:
+1. Create an agent from the `claude-code` template with a **GitHub** connection — `gh` uses it to clone this repo and the source repos, and to push the wiki. Add **Slack** for query delivery.
+2. Send it this as the first message:
 
    > Here is a file, read it and set yourself up according to it: https://github.com/dam-agents/llm-wiki/blob/main/INSTALLATION.md
 
-The agent reads the runbook, installs itself, then offers to onboard. Answer its
-interview and it points itself at the repos you want documented, schedules its own
-maintenance, and runs the first ingest. From then on it runs autonomously.
+The agent then reaches steady state in two phases, both self-run:
 
-llm-wiki needs **no environment variables**: the sources and the wiki remote come
-from the onboarding interview, not from config injected at create time.
+- **Installation** ([`INSTALLATION.md`](INSTALLATION.md)) — one-shot, idempotent machine setup: makes this repo its working dir, surfaces the skills, protects the instance files. Does **not** interview, schedule, or ingest.
+- **Onboarding** (the `onboard` skill) — the interview: purpose, sources, taxonomy, cadence, and the wiki remote (verified pushable, or it aborts and asks you to create it). Writes config, schedules maintenance, runs the first ingest.
 
-## How the agent runs after onboarding
-
-- **onboard** (manual, once) — interview, write config + `THIS-WIKI.md`,
-  self-schedule maintenance, run the first ingest.
-- **ingest + lint** (scheduled) — delta-ingest new commits, then lint; commit and
-  push the wiki silently.
-- **query** (Slack / Web UI) — answer from the wiki with citations.
-
-Maintenance is scheduled through the `platform-outbound` MCP `create_schedule`
-tool — the only valid scheduler inside a Platform pod. Across agent deletion only
-the `wiki/` content survives, via its git remote configured at onboarding; a fresh
-agent clones it and reconstructs `wiki.config.json` from page provenance.
+Installation ends by offering onboarding, so the operator only ever sends one message. No environment variables are required — sources and the wiki remote come from the interview, not from config injected at create time.
 
 ## Files
 
-- [`CLAUDE.md`](CLAUDE.md) — full operating manual loaded by the agent.
+- [`CLAUDE.md`](CLAUDE.md) — the full operating manual loaded by the agent.
 - [`INSTALLATION.md`](INSTALLATION.md) — first-run machine-setup runbook.
-- [`THIS-WIKI.md`](THIS-WIKI.md) — per-instance specialisation, written at onboard
-  (seed reads _Not yet onboarded_).
-- [`skills/`](skills/) — the four wiki workflow skills (`onboard`, `ingest`,
-  `query`, `lint`).
-- [`scripts/`](scripts/) — thin deterministic helpers ([`scripts/README.md`](scripts/README.md)).
+- [`THIS-WIKI.md`](THIS-WIKI.md) — per-instance specialization, written at onboard.
+- [`skills/`](skills/) — the four workflow skills (`onboard`, `ingest`, `lint`, `query`).
+- [`scripts/`](scripts/) — thin deterministic helpers.
 - [`wiki.config.json`](wiki.config.json) — per-instance configuration seed.
